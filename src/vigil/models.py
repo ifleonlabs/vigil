@@ -44,6 +44,7 @@ class Monitor(SQLModel, table=True):
     keyword: Optional[str] = None        # if set, body must contain it (else DOWN)
     watch_content: bool = False          # if true, body-hash changes -> CHANGED
     paused: bool = False
+    webhook_url: Optional[str] = None    # if set, incidents POST here (via notifykit)
 
     # Rolling state, updated by each check.
     last_status: Optional[CheckStatus] = None

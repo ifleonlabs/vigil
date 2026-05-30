@@ -27,6 +27,7 @@ class MonitorCreate(BaseModel):
     expected_status: int = 200
     keyword: str | None = None
     watch_content: bool = False
+    webhook_url: str | None = None
 
 
 class MonitorUpdate(BaseModel):
@@ -37,6 +38,7 @@ class MonitorUpdate(BaseModel):
     keyword: str | None = None
     watch_content: bool | None = None
     paused: bool | None = None
+    webhook_url: str | None = None
 
 
 class CheckOut(BaseModel):
@@ -57,6 +59,7 @@ class MonitorOut(BaseModel):
     keyword: str | None
     watch_content: bool
     paused: bool
+    webhook_url: str | None = None
     last_status: CheckStatus | None
     last_checked_at: datetime | None
     uptime_ratio: float | None = None     # over the recent window

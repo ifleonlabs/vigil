@@ -16,6 +16,7 @@ from apikit import ApiClient, RetryPolicy
 from apikit.errors import ApiError
 from sqlmodel import Session
 
+from . import notify
 from .config import Settings, get_settings
 from .models import Check, CheckStatus, Incident, Monitor, utcnow
 
@@ -107,11 +108,14 @@ def _update_incidents(session: Session, monitor: Monitor, outcome: CheckOutcome,
     reachable = outcome.status in (CheckStatus.UP, CheckStatus.CHANGED)
 
     if not reachable and open_incident is None:
+        detail = outcome.error or "down"
         session.add(Incident(monitor_id=monitor.id, status=CheckStatus.DOWN,
-                             detail=outcome.error or "down", started_at=now))
+                             detail=detail, started_at=now))
+        notify.send_incident(monitor, opened=True, detail=detail)
     elif reachable and open_incident is not None:
         open_incident.resolved_at = now
         session.add(open_incident)
+        notify.send_incident(monitor, opened=False, detail="back up")
 
 
 def _open_incident(session: Session, monitor: Monitor) -> Incident | None:

@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "apikit",
     "taskq",
+    "notifykit",
     "fastapi>=0.110.0",
     "uvicorn>=0.29.0",
     "sqlmodel>=0.0.16",
@@ -35,6 +36,7 @@ dev = [
 [tool.uv.sources]
 apikit = { git = "https://github.com/ifleonlabs/apikit" }
 taskq = { git = "https://github.com/ifleonlabs/taskq" }
+notifykit = { git = "https://github.com/ifleonlabs/notifykit" }
 
 [build-system]
 requires = ["hatchling"]

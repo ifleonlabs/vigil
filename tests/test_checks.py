@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import httpx
+from notifykit import Level, MemoryChannel, Notifier
 
+from vigil import notify
 from vigil.checks import perform_check, record_check, run_check
 from vigil.models import CheckStatus, Incident, Monitor
 from vigil.stats import open_incident_count
@@ -89,3 +91,26 @@ def test_repeated_down_does_not_open_duplicate_incidents(session, monitor):
     run_check(session, monitor, client=make_http(down))
     run_check(session, monitor, client=make_http(down))
     assert open_incident_count(session, monitor.id) == 1
+
+
+# --- alerting via notifykit ----------------------------------------------
+def test_incident_open_and_resolve_send_alerts(session, monitor, monkeypatch):
+    monitor.webhook_url = "https://hook.test"
+    session.add(monitor)
+    session.commit()
+
+    mem = MemoryChannel()
+    monkeypatch.setattr(notify, "build_notifier", lambda url: Notifier(mem))
+
+    run_check(session, monitor, client=make_http(lambda r: httpx.Response(500)))
+    assert mem.last.level is Level.ERROR and "DOWN" in mem.last.title
+
+    run_check(session, monitor, client=make_http(lambda r: httpx.Response(200, text="hi")))
+    assert mem.last.level is Level.SUCCESS and "RECOVERED" in mem.last.title
+
+
+def test_no_alert_without_webhook_url(session, monitor, monkeypatch):
+    called = []
+    monkeypatch.setattr(notify, "build_notifier", lambda url: called.append(url) or Notifier())
+    run_check(session, monitor, client=make_http(lambda r: httpx.Response(500)))
+    assert called == []   # monitor has no webhook_url -> no notifier built

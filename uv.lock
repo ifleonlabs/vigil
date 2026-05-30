@@ -538,6 +538,14 @@ wheels = [
 ]
 
 [[package]]
+name = "notifykit"
+version = "0.1.0"
+source = { git = "https://github.com/ifleonlabs/notifykit#8ce5b15b3b508b27218a47b2e10ec35c0b12de1e" }
+dependencies = [
+    { name = "apikit" },
+]
+
+[[package]]
 name = "packaging"
 version = "26.2"
 source = { registry = "https://pypi.org/simple" }
@@ -951,6 +959,7 @@ dependencies = [
     { name = "bcrypt" },
     { name = "fastapi" },
     { name = "jinja2" },
+    { name = "notifykit" },
     { name = "pydantic-settings" },
     { name = "python-jose", extra = ["cryptography"] },
     { name = "python-multipart" },
@@ -973,6 +982,7 @@ requires-dist = [
     { name = "bcrypt", specifier = ">=4.0.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
+    { name = "notifykit", git = "https://github.com/ifleonlabs/notifykit" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
     { name = "python-multipart", specifier = ">=0.0.9" },

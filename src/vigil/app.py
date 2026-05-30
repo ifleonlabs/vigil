@@ -88,6 +88,7 @@ def _to_out(session: Session, monitor: Monitor) -> MonitorOut:
         id=monitor.id, name=monitor.name, url=monitor.url,
         interval_seconds=monitor.interval_seconds, expected_status=monitor.expected_status,
         keyword=monitor.keyword, watch_content=monitor.watch_content, paused=monitor.paused,
+        webhook_url=monitor.webhook_url,
         last_status=monitor.last_status, last_checked_at=monitor.last_checked_at,
         **summary,
     )

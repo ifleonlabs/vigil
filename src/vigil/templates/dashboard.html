@@ -78,6 +78,7 @@
           <label>Interval (s) <input id="m-int" type="number" value="300" style="width:7rem"></label>
           <label>Expect <input id="m-status" type="number" value="200" style="width:6rem"></label>
           <label>Keyword <input id="m-kw" placeholder="optional"></label>
+          <label>Webhook <input id="m-hook" placeholder="alert URL (optional)" size="20"></label>
           <label class="row" style="align-items:center;gap:.35rem;">
             <input id="m-watch" type="checkbox" style="width:auto"> watch content
           </label>
@@ -130,8 +131,9 @@ async function addMonitor() {
       name:$("#m-name").value, url:$("#m-url").value,
       interval_seconds:+$("#m-int").value, expected_status:+$("#m-status").value,
       keyword:$("#m-kw").value || null, watch_content:$("#m-watch").checked,
+      webhook_url:$("#m-hook").value || null,
     })});
-    $("#m-name").value = $("#m-url").value = $("#m-kw").value = "";
+    $("#m-name").value = $("#m-url").value = $("#m-kw").value = $("#m-hook").value = "";
     loadMonitors();
   } catch(e) { $("#adderr").textContent = e.message; }
 }

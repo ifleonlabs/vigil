@@ -6,14 +6,16 @@ This is **project #12** in a progressive Python series, and the first **top-of-t
 
 - **[apikit](https://github.com/ifleonlabs/apikit)** runs every check (HTTP GET with timeout + retry/backoff)
 - **[taskq](https://github.com/ifleonlabs/taskq)** runs checks as durable background jobs
+- **[notifykit](https://github.com/ifleonlabs/notifykit)** sends incident alerts to a webhook (and itself rides on apikit)
 
 plus FastAPI, SQLModel/SQLite, and JWT auth (the `auth-api` pattern). The point of vigil is to prove the ecosystem composes — the small libraries snap together into a real product.
 
 ```toml
 # pyproject.toml — the bottom of the pyramid, installed into the top
 [tool.uv.sources]
-apikit = { git = "https://github.com/ifleonlabs/apikit" }
-taskq  = { git = "https://github.com/ifleonlabs/taskq" }
+apikit    = { git = "https://github.com/ifleonlabs/apikit" }
+taskq     = { git = "https://github.com/ifleonlabs/taskq" }
+notifykit = { git = "https://github.com/ifleonlabs/notifykit" }
 ```
 
 ## What it does
@@ -21,6 +23,7 @@ taskq  = { git = "https://github.com/ifleonlabs/taskq" }
 - **Monitors** — watch a URL on an interval; assert an expected status code, optionally require a keyword in the body, optionally watch for content changes
 - **Checks** — each run records `up` / `down` / `changed`, the HTTP status, and latency
 - **Incidents** — opened automatically when a monitor goes down, resolved when it recovers
+- **Alerts** — give a monitor a `webhook_url` and incident open/resolve POSTs a notification there (via notifykit; best-effort, never blocks a check)
 - **Stats** — uptime ratio and average latency over a recent window
 - **Multi-user** — JWT auth; each user owns their own monitors
 - **Dashboard** — a clean web UI to add monitors and watch their status
@@ -75,7 +78,7 @@ Down results open an incident (resolved on the next reachable check). apikit giv
 
 ```bash
 uv sync
-uv run pytest        # 19 tests, fully offline
+uv run pytest        # 21 tests, fully offline
 ```
 
 Every HTTP check in the tests is served by `httpx.MockTransport` through apikit, so the suite never touches the network — including the check engine, incident logic, scheduler dispatch, auth, and the full API via FastAPI's `TestClient`.
@@ -95,6 +98,7 @@ vigil/
 │   ├── stats.py            # uptime / latency / incident summaries
 │   ├── scheduler.py        # enqueue due checks
 │   ├── tasks.py            # taskq check job
+│   ├── notify.py           # incident alerts via notifykit
 │   ├── app.py              # FastAPI app
 │   ├── cli.py              # serve / worker / scheduler / create-user
 │   └── templates/dashboard.html
