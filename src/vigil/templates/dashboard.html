@@ -1,187 +1,475 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>vigil — uptime monitoring</title>
+  <title>vigil — uptime &amp; change monitoring</title>
+  <meta name="description" content="Uptime & change monitoring dashboard.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ============================================================
+       ifleon design system — OLED operations dashboard
+       Shared tokens + components (vigil / askdocs / roundup)
+       ============================================================ */
     :root {
-      --bg:#0f1420; --panel:#171e2e; --line:#26304a; --fg:#e8edf6; --muted:#93a0b8;
-      --up:#34d399; --down:#f87171; --changed:#fbbf24; --accent:#5b8cff;
+      /* surfaces */
+      --bg: #0F172A;
+      --surface: #131D31;
+      --surface-2: #1A2640;
+      --input: #0B1424;
+      /* text */
+      --fg: #F8FAFC;
+      --fg-muted: #94A3B8;
+      --fg-subtle: #64748B;
+      /* lines */
+      --border: #25324B;
+      --border-strong: #3A4A66;
+      /* brand / semantic */
+      --primary: #1E293B;
+      --accent: #22C55E;
+      --accent-hover: #16A34A;
+      --accent-soft: rgba(34, 197, 94, .13);
+      --danger: #EF4444;
+      --danger-soft: rgba(239, 68, 68, .13);
+      --warning: #FBBF24;
+      --warning-soft: rgba(251, 191, 36, .13);
+      --info: #38BDF8;
+      --ring: #38BDF8;
+      /* spacing scale (4/8) */
+      --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+      --radius: 12px; --radius-sm: 8px; --radius-pill: 999px;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+      --mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-           background:var(--bg); color:var(--fg); line-height:1.5; }
-    header { padding:1.1rem 1.5rem; border-bottom:1px solid var(--line);
-             display:flex; align-items:center; justify-content:space-between; }
-    .brand { font-weight:800; font-size:1.3rem; letter-spacing:-.02em; }
-    .brand span { color:var(--accent); }
-    main { max-width:60rem; margin:0 auto; padding:1.5rem; }
-    button { font:inherit; cursor:pointer; border:0; border-radius:8px;
-             background:var(--accent); color:#fff; padding:.5rem .9rem; }
-    button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
-    button.danger { background:transparent; border:1px solid var(--down); color:var(--down); }
-    input { font:inherit; background:var(--bg); border:1px solid var(--line); color:var(--fg);
-            border-radius:8px; padding:.5rem .6rem; }
-    label { display:flex; flex-direction:column; gap:.25rem; font-size:.85rem; color:var(--muted); }
-    .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.1rem; }
-    .row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:end; }
-    .grid { display:grid; gap:.8rem; }
-    .mon { display:flex; align-items:center; gap:1rem; padding:.9rem 1rem;
-           border:1px solid var(--line); border-radius:12px; background:var(--panel); }
-    .mon .meta { flex:1; min-width:0; }
-    .mon .name { font-weight:700; }
-    .mon .url { color:var(--muted); font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .badge { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-             padding:.18rem .5rem; border-radius:999px; }
-    .badge.up{background:rgba(52,211,153,.15);color:var(--up)}
-    .badge.down{background:rgba(248,113,113,.15);color:var(--down)}
-    .badge.changed{background:rgba(251,191,36,.15);color:var(--changed)}
-    .badge.none{background:rgba(147,160,184,.15);color:var(--muted)}
-    .stat { text-align:right; font-size:.8rem; color:var(--muted); min-width:6rem; }
-    .stat b { display:block; color:var(--fg); font-size:1rem; }
-    .muted { color:var(--muted); }
-    h2 { font-size:1.05rem; margin:1.4rem 0 .7rem; }
-    .checks { margin-top:.6rem; font-size:.82rem; }
-    .check { display:flex; gap:.6rem; padding:.25rem 0; border-top:1px solid var(--line); }
-    .dot { width:.6rem; height:.6rem; border-radius:50%; margin-top:.45rem; }
-    .dot.up{background:var(--up)} .dot.down{background:var(--down)} .dot.changed{background:var(--changed)}
-    .hidden { display:none; }
-    .err { color:var(--down); font-size:.85rem; min-height:1.2rem; }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; min-height: 100dvh; background: var(--bg); color: var(--fg);
+      font-family: var(--sans); font-size: 16px; line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3 { margin: 0; line-height: 1.25; font-weight: 600; letter-spacing: -.01em; }
+    a { color: var(--info); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .muted { color: var(--fg-muted); }
+    .subtle { color: var(--fg-subtle); }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+
+    /* focus — always visible for keyboard users */
+    :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+
+    /* ---- buttons ---- */
+    .btn {
+      font: inherit; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center;
+      gap: var(--s2); justify-content: center; min-height: 40px; padding: 0 var(--s4);
+      border-radius: var(--radius-sm); border: 1px solid transparent;
+      background: var(--accent); color: #04210F; transition: background .18s ease, border-color .18s ease, opacity .18s ease;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn.ghost { background: transparent; border-color: var(--border-strong); color: var(--fg); }
+    .btn.ghost:hover { background: var(--surface-2); }
+    .btn.danger { background: transparent; border-color: var(--danger); color: #FCA5A5; }
+    .btn.danger:hover { background: var(--danger-soft); }
+    .btn.sm { min-height: 32px; padding: 0 var(--s3); font-size: 13px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .icon { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ---- fields ---- */
+    .field { display: flex; flex-direction: column; gap: var(--s1); }
+    .label { font-size: 13px; font-weight: 500; color: var(--fg-muted); }
+    .label .req { color: var(--danger); }
+    .input {
+      font: inherit; color: var(--fg); background: var(--input);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      min-height: 44px; padding: 0 var(--s3); transition: border-color .15s ease;
+    }
+    .input:focus { border-color: var(--ring); outline: none; }
+    .input::placeholder { color: var(--fg-subtle); }
+    .input[aria-invalid="true"] { border-color: var(--danger); }
+    .hint { font-size: 12px; color: var(--fg-subtle); }
+    .err-text { font-size: 12px; color: #FCA5A5; min-height: 0; }
+
+    /* ---- layout ---- */
+    .nav {
+      position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
+      gap: var(--s4); padding: var(--s3) var(--s5); background: rgba(15,23,42,.85);
+      backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
+    }
+    .brand { font-family: var(--mono); font-weight: 700; font-size: 19px; letter-spacing: -.02em; display: flex; align-items: center; gap: var(--s2); }
+    .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+    .nav .who { display: flex; align-items: center; gap: var(--s3); color: var(--fg-muted); font-size: 14px; }
+    main { max-width: 1040px; margin: 0 auto; padding: var(--s6) var(--s5) var(--s7); }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .pad { padding: var(--s5); }
+    .row { display: flex; gap: var(--s3); flex-wrap: wrap; }
+    .between { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; }
+    .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-subtle); margin: var(--s6) 0 var(--s3); }
+
+    /* ---- auth ---- */
+    .auth-wrap { min-height: calc(100dvh - 120px); display: grid; place-items: center; padding: var(--s5); }
+    .auth { width: 100%; max-width: 400px; }
+    .auth h1 { font-size: 22px; margin-bottom: var(--s1); }
+    .auth .lede { color: var(--fg-muted); font-size: 14px; margin-bottom: var(--s5); }
+    .auth .field { margin-bottom: var(--s4); }
+    .pw-wrap { position: relative; display: flex; }
+    .pw-wrap .input { flex: 1; padding-right: 44px; }
+    .pw-toggle { position: absolute; right: 4px; top: 4px; bottom: 4px; width: 36px; display: grid; place-items: center; background: none; border: 0; color: var(--fg-muted); cursor: pointer; }
+
+    /* ---- summary stats ---- */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); }
+    .stat { padding: var(--s4) var(--s5); }
+    .stat .k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-subtle); }
+    .stat .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 28px; font-weight: 600; margin-top: var(--s1); }
+    .stat .v.up { color: var(--accent); } .stat .v.down { color: var(--danger); }
+
+    /* ---- monitor rows ---- */
+    .monitors { display: flex; flex-direction: column; gap: var(--s3); }
+    .monitor { display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: var(--s4); padding: var(--s4) var(--s5); }
+    .monitor .meta { min-width: 0; }
+    .monitor .name { font-weight: 600; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+    .monitor .url { color: var(--fg-muted); font-size: 13px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .monitor .tile { text-align: right; min-width: 84px; }
+    .monitor .tile .tv { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; }
+    .monitor .tile .tk { font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: .05em; }
+    .monitor .actions { display: flex; gap: var(--s2); }
+
+    /* ---- status badge ---- */
+    .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid transparent; }
+    .badge .icon { width: 13px; height: 13px; }
+    .badge.up { color: var(--accent); background: var(--accent-soft); border-color: rgba(34,197,94,.3); }
+    .badge.down { color: #FCA5A5; background: var(--danger-soft); border-color: rgba(239,68,68,.3); }
+    .badge.changed { color: var(--warning); background: var(--warning-soft); border-color: rgba(251,191,36,.3); }
+    .badge.none { color: var(--fg-muted); background: rgba(148,163,184,.1); border-color: var(--border); }
+    .pausedtag { font-size: 11px; color: var(--fg-subtle); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 2px 8px; }
+
+    /* ---- collapsible add form ---- */
+    .addform { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); padding-top: var(--s2); }
+    .addform .full { grid-column: 1 / -1; }
+    .check-row { display: flex; align-items: center; gap: var(--s2); cursor: pointer; }
+    .check-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+    .hidden { display: none !important; }
+
+    /* ---- empty + skeleton + toast ---- */
+    .empty { text-align: center; padding: var(--s7) var(--s5); color: var(--fg-muted); }
+    .empty svg { width: 40px; height: 40px; stroke: var(--fg-subtle); fill: none; stroke-width: 1.5; stroke-linecap: round; margin-bottom: var(--s3); }
+    .skeleton { height: 72px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 37%, var(--surface) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+    @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+    .toasts { position: fixed; right: var(--s5); bottom: var(--s5); z-index: 100; display: flex; flex-direction: column; gap: var(--s2); max-width: 360px; }
+    .toast { padding: var(--s3) var(--s4); border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border-strong); box-shadow: var(--shadow); font-size: 14px; animation: rise .2s ease; }
+    .toast.error { border-color: var(--danger); }
+    .toast.ok { border-color: var(--accent); }
+    @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 720px) {
+      main { padding: var(--s5) var(--s4) var(--s7); }
+      .monitor { grid-template-columns: auto 1fr auto; row-gap: var(--s2); }
+      .monitor .tile.lat { display: none; }
+      .monitor .actions { grid-column: 2 / -1; justify-content: flex-end; }
+      .addform { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand">vi<span>gil</span></div>
-    <div id="userbox"></div>
-  </header>
-  <main>
-    <!-- Auth -->
-    <section id="auth" class="panel hidden">
-      <h2 style="margin-top:0">Sign in</h2>
-      <div class="row">
-        <label>Username <input id="u" autocomplete="username"></label>
-        <label>Password <input id="p" type="password" autocomplete="current-password"></label>
-        <button onclick="auth('login')">Log in</button>
-        <button class="ghost" onclick="auth('register')">Register</button>
-      </div>
-      <div class="err" id="autherr"></div>
-    </section>
+  <nav class="nav">
+    <span class="brand"><span class="dot" aria-hidden="true"></span>vigil</span>
+    <div class="who" id="who"></div>
+  </nav>
 
-    <!-- App -->
-    <section id="appview" class="hidden">
-      <div class="panel">
-        <h2 style="margin-top:0">Add a monitor</h2>
-        <div class="row">
-          <label>Name <input id="m-name" placeholder="My site"></label>
-          <label>URL <input id="m-url" placeholder="https://example.com" size="28"></label>
-          <label>Interval (s) <input id="m-int" type="number" value="300" style="width:7rem"></label>
-          <label>Expect <input id="m-status" type="number" value="200" style="width:6rem"></label>
-          <label>Keyword <input id="m-kw" placeholder="optional"></label>
-          <label>Webhook <input id="m-hook" placeholder="alert URL (optional)" size="20"></label>
-          <label class="row" style="align-items:center;gap:.35rem;">
-            <input id="m-watch" type="checkbox" style="width:auto"> watch content
-          </label>
-          <button onclick="addMonitor()">Add</button>
+  <!-- AUTH -->
+  <section id="auth" class="auth-wrap hidden">
+    <div class="card pad auth">
+      <h1>Sign in to vigil</h1>
+      <p class="lede">Uptime &amp; change monitoring for your endpoints.</p>
+      <form id="authForm" novalidate>
+        <div class="field">
+          <label class="label" for="u">Username <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="u" name="username" autocomplete="username" required>
         </div>
-        <div class="err" id="adderr"></div>
-      </div>
+        <div class="field">
+          <label class="label" for="p">Password <span class="req" aria-hidden="true">*</span></label>
+          <div class="pw-wrap">
+            <input class="input" id="p" name="password" type="password" autocomplete="current-password" required>
+            <button class="pw-toggle" type="button" id="pwToggle" aria-label="Show password">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="err-text" id="authErr" role="alert" aria-live="polite"></p>
+        <div class="row" style="margin-top:var(--s4)">
+          <button class="btn" type="submit" data-action="login" style="flex:1">Log in</button>
+          <button class="btn ghost" type="submit" data-action="register" style="flex:1">Create account</button>
+        </div>
+      </form>
+    </div>
+  </section>
 
-      <h2>Monitors</h2>
-      <div id="monitors" class="grid"></div>
-    </section>
+  <!-- APP -->
+  <main id="app" class="hidden">
+    <div class="between">
+      <div>
+        <h1 style="font-size:24px">Monitors</h1>
+        <p class="muted" style="font-size:14px">Auto-refreshing every 15s</p>
+      </div>
+      <button class="btn" id="toggleAdd">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add monitor
+      </button>
+    </div>
+
+    <!-- summary -->
+    <div class="stats" id="summary" style="margin-top:var(--s4)"></div>
+
+    <!-- add form (collapsed by default) -->
+    <div class="card pad hidden" id="addPanel" style="margin-top:var(--s4)">
+      <h2 style="font-size:16px;margin-bottom:var(--s2)">New monitor</h2>
+      <form id="monForm" novalidate>
+        <div class="addform">
+          <div class="field">
+            <label class="label" for="m-name">Name <span class="req">*</span></label>
+            <input class="input" id="m-name" required placeholder="My API">
+            <span class="err-text" data-err="name"></span>
+          </div>
+          <div class="field">
+            <label class="label" for="m-url">URL <span class="req">*</span></label>
+            <input class="input" id="m-url" required placeholder="https://example.com/health" inputmode="url">
+            <span class="err-text" data-err="url"></span>
+          </div>
+          <div class="field">
+            <label class="label" for="m-int">Check interval</label>
+            <input class="input mono" id="m-int" type="number" min="10" value="300">
+            <span class="hint">seconds between checks</span>
+          </div>
+          <div class="field">
+            <label class="label" for="m-status">Expected status</label>
+            <input class="input mono" id="m-status" type="number" value="200">
+            <span class="hint">HTTP code that means healthy</span>
+          </div>
+          <div class="field">
+            <label class="label" for="m-kw">Keyword <span class="subtle">(optional)</span></label>
+            <input class="input" id="m-kw" placeholder="must appear in the body">
+          </div>
+          <div class="field">
+            <label class="label" for="m-hook">Alert webhook <span class="subtle">(optional)</span></label>
+            <input class="input" id="m-hook" placeholder="https://hooks.slack.com/…" inputmode="url">
+          </div>
+          <label class="check-row full" for="m-watch">
+            <input type="checkbox" id="m-watch"> <span>Alert me when the page content changes</span>
+          </label>
+        </div>
+        <div class="row" style="margin-top:var(--s4)">
+          <button class="btn" type="submit" id="createBtn">Create monitor</button>
+          <button class="btn ghost" type="button" id="cancelAdd">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="section-title">Your monitors</div>
+    <div class="monitors" id="monitors" aria-live="polite"></div>
   </main>
 
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
 <script>
-const $ = s => document.querySelector(s);
+const $ = (s, r=document) => r.querySelector(s);
 let token = localStorage.getItem("vigil_token");
 let username = localStorage.getItem("vigil_user");
+let timer = null;
 
+/* ---------- SVG icons (no emoji) ---------- */
+const ICON = {
+  up:      '<svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+  down:    '<svg class="icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  changed: '<svg class="icon" viewBox="0 0 24 24"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>',
+  none:    '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/></svg>',
+  refresh: '<svg class="icon" viewBox="0 0 24 24"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>',
+  trash:   '<svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  pause:   '<svg class="icon" viewBox="0 0 24 24"><path d="M10 4H6v16h4zM18 4h-4v16h4z"/></svg>',
+  play:    '<svg class="icon" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>',
+};
+const esc = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
+
+/* ---------- toasts ---------- */
+function toast(msg, kind="error") {
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+
+/* ---------- api ---------- */
 async function api(path, opts={}) {
   opts.headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
   if (token) opts.headers["Authorization"] = "Bearer " + token;
   const r = await fetch(path, opts);
-  if (r.status === 401) { logout(); throw new Error("Please sign in"); }
-  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ("HTTP "+r.status));
+  if (r.status === 401) { logout(); throw new Error("Session expired — please sign in."); }
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || `Request failed (${r.status})`);
   return r.status === 204 ? null : r.json();
 }
 
-async function auth(kind) {
-  $("#autherr").textContent = "";
+/* ---------- auth ---------- */
+$("#pwToggle").onclick = () => {
+  const p = $("#p"); const show = p.type === "password";
+  p.type = show ? "text" : "password";
+  $("#pwToggle").setAttribute("aria-label", show ? "Hide password" : "Show password");
+};
+$("#authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const action = e.submitter?.dataset.action || "login";
+  const u = $("#u").value.trim(), p = $("#p").value;
+  $("#authErr").textContent = "";
+  if (!u || !p) { $("#authErr").textContent = "Username and password are required."; return; }
+  const btn = e.submitter; btn.disabled = true;
   try {
-    const data = await api("/api/"+kind, {method:"POST",
-      body: JSON.stringify({username:$("#u").value, password:$("#p").value})});
+    const data = await api("/api/" + action, {method:"POST", body: JSON.stringify({username:u, password:p})});
     token = data.access_token; username = data.username;
-    localStorage.setItem("vigil_token", token);
-    localStorage.setItem("vigil_user", username);
+    localStorage.setItem("vigil_token", token); localStorage.setItem("vigil_user", username);
     render();
-  } catch(e) { $("#autherr").textContent = e.message; }
-}
-
+  } catch (err) { $("#authErr").textContent = err.message; }
+  finally { btn.disabled = false; }
+});
 function logout() {
   token = username = null;
   localStorage.removeItem("vigil_token"); localStorage.removeItem("vigil_user");
+  if (timer) { clearInterval(timer); timer = null; }
   render();
 }
 
-async function addMonitor() {
-  $("#adderr").textContent = "";
+/* ---------- add monitor ---------- */
+$("#toggleAdd").onclick = () => { $("#addPanel").classList.toggle("hidden"); $("#m-name").focus(); };
+$("#cancelAdd").onclick = () => $("#addPanel").classList.add("hidden");
+
+function fieldError(key, msg) { const el = $(`[data-err="${key}"]`); if (el) el.textContent = msg || ""; }
+$("#monForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("#m-name").value.trim(), url = $("#m-url").value.trim();
+  let ok = true;
+  fieldError("name", ""); fieldError("url", "");
+  if (!name) { fieldError("name", "Give the monitor a name."); $("#m-name").setAttribute("aria-invalid","true"); ok = false; }
+  else $("#m-name").removeAttribute("aria-invalid");
+  if (!/^https?:\/\/.+/i.test(url)) { fieldError("url", "Enter a full URL (https://…)."); $("#m-url").setAttribute("aria-invalid","true"); ok = false; }
+  else $("#m-url").removeAttribute("aria-invalid");
+  if (!ok) return;
+
+  const btn = $("#createBtn"); btn.disabled = true;
   try {
     await api("/api/monitors", {method:"POST", body: JSON.stringify({
-      name:$("#m-name").value, url:$("#m-url").value,
-      interval_seconds:+$("#m-int").value, expected_status:+$("#m-status").value,
-      keyword:$("#m-kw").value || null, watch_content:$("#m-watch").checked,
-      webhook_url:$("#m-hook").value || null,
+      name, url,
+      interval_seconds: +$("#m-int").value || 300,
+      expected_status: +$("#m-status").value || 200,
+      keyword: $("#m-kw").value.trim() || null,
+      watch_content: $("#m-watch").checked,
+      webhook_url: $("#m-hook").value.trim() || null,
     })});
-    $("#m-name").value = $("#m-url").value = $("#m-kw").value = $("#m-hook").value = "";
-    loadMonitors();
-  } catch(e) { $("#adderr").textContent = e.message; }
+    $("#monForm").reset(); $("#addPanel").classList.add("hidden");
+    toast("Monitor created.", "ok");
+    await load();
+  } catch (err) { toast(err.message); }
+  finally { btn.disabled = false; }
+});
+
+/* ---------- render monitors ---------- */
+const pct = r => r == null ? "—" : (r*100).toFixed(1) + "%";
+const ms  = v => v == null ? "—" : Math.round(v) + " ms";
+function ago(iso) {
+  if (!iso) return "never";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime())/1000);
+  if (s < 60) return Math.floor(s)+"s ago";
+  if (s < 3600) return Math.floor(s/60)+"m ago";
+  return Math.floor(s/3600)+"h ago";
 }
 
-const pct = r => r==null ? "—" : (r*100).toFixed(1)+"%";
-const ms  = v => v==null ? "—" : Math.round(v)+" ms";
-
-async function loadMonitors() {
-  const list = await api("/api/monitors");
-  const box = $("#monitors");
-  if (!list.length) { box.innerHTML = '<p class="muted">No monitors yet. Add one above.</p>'; return; }
-  box.innerHTML = "";
-  for (const m of list) {
-    const st = m.last_status || "none";
-    const el = document.createElement("div");
-    el.className = "mon";
-    el.innerHTML = `
-      <span class="badge ${st}">${st}</span>
-      <div class="meta">
-        <div class="name">${esc(m.name)} ${m.paused?'<span class="muted">(paused)</span>':''}</div>
-        <div class="url">${esc(m.url)}</div>
-      </div>
-      <div class="stat"><b>${pct(m.uptime_ratio)}</b>uptime</div>
-      <div class="stat"><b>${ms(m.avg_latency_ms)}</b>avg latency</div>
-      <button class="ghost" data-act="check">Check now</button>
-      <button class="danger" data-act="del">✕</button>`;
-    el.querySelector('[data-act="check"]').onclick = () => checkNow(m.id);
-    el.querySelector('[data-act="del"]').onclick = () => delMonitor(m.id);
-    box.appendChild(el);
-  }
+function summaryHTML(list) {
+  const up = list.filter(m => m.last_status === "up" || m.last_status === "changed").length;
+  const down = list.filter(m => m.last_status === "down").length;
+  return `
+    <div class="card stat"><div class="k">Monitors</div><div class="v">${list.length}</div></div>
+    <div class="card stat"><div class="k">Up</div><div class="v up">${up}</div></div>
+    <div class="card stat"><div class="k">Down</div><div class="v down">${down}</div></div>`;
 }
 
-async function checkNow(id) { await api(`/api/monitors/${id}/check`, {method:"POST"}); loadMonitors(); }
-async function delMonitor(id) {
-  if (!confirm("Delete this monitor?")) return;
-  await api(`/api/monitors/${id}`, {method:"DELETE"}); loadMonitors();
+function monitorHTML(m) {
+  const st = m.last_status || "none";
+  return `<div class="card monitor" data-id="${m.id}">
+    <span class="badge ${st}">${ICON[st]||ICON.none}${st}</span>
+    <div class="meta">
+      <div class="name">${esc(m.name)} ${m.paused ? '<span class="pausedtag">paused</span>' : ''}
+        ${m.open_incidents ? `<span class="badge down" title="open incidents">${m.open_incidents} incident${m.open_incidents>1?'s':''}</span>` : ''}</div>
+      <div class="url" title="${esc(m.url)}">${esc(m.url)}</div>
+      <div class="subtle" style="font-size:12px">checked ${ago(m.last_checked_at)}</div>
+    </div>
+    <div class="tile"><div class="tv">${pct(m.uptime_ratio)}</div><div class="tk">uptime</div></div>
+    <div class="tile lat"><div class="tv">${ms(m.avg_latency_ms)}</div><div class="tk">latency</div></div>
+    <div class="actions">
+      <button class="btn ghost sm" data-act="check" title="Check now" aria-label="Check now">${ICON.refresh}</button>
+      <button class="btn ghost sm" data-act="pause" title="${m.paused?'Resume':'Pause'}" aria-label="${m.paused?'Resume':'Pause'}">${m.paused?ICON.play:ICON.pause}</button>
+      <button class="btn danger sm" data-act="del" title="Delete" aria-label="Delete monitor">${ICON.trash}</button>
+    </div>
+  </div>`;
 }
 
-function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+async function load() {
+  try {
+    const list = await api("/api/monitors");
+    $("#summary").innerHTML = summaryHTML(list);
+    const box = $("#monitors");
+    if (!list.length) {
+      box.innerHTML = `<div class="card empty">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0zM12 8v4l3 2"/></svg>
+        <p>No monitors yet.</p><p class="subtle">Add one to start tracking uptime and changes.</p></div>`;
+      return;
+    }
+    box.innerHTML = list.map(monitorHTML).join("");
+  } catch (err) { toast(err.message); }
+}
 
+/* event delegation for monitor actions */
+$("#monitors").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-act]"); if (!btn) return;
+  const id = btn.closest(".monitor").dataset.id; const act = btn.dataset.act;
+  btn.disabled = true;
+  try {
+    if (act === "check") { const ic = btn.querySelector(".icon"); ic && ic.classList.add("spin"); await api(`/api/monitors/${id}/check`, {method:"POST"}); }
+    else if (act === "pause") {
+      const paused = btn.getAttribute("aria-label") === "Pause";
+      await api(`/api/monitors/${id}`, {method:"PATCH", body: JSON.stringify({paused})});
+    }
+    else if (act === "del") {
+      if (!confirm("Delete this monitor and its history?")) { btn.disabled = false; return; }
+      await api(`/api/monitors/${id}`, {method:"DELETE"});
+      toast("Monitor deleted.", "ok");
+    }
+    await load();
+  } catch (err) { toast(err.message); btn.disabled = false; }
+});
+
+/* ---------- app shell ---------- */
 function render() {
   const authed = !!token;
   $("#auth").classList.toggle("hidden", authed);
-  $("#appview").classList.toggle("hidden", !authed);
-  $("#userbox").innerHTML = authed
-    ? `<span class="muted">${esc(username)}</span> &nbsp;<button class="ghost" onclick="logout()">Log out</button>`
+  $("#app").classList.toggle("hidden", !authed);
+  $("#who").innerHTML = authed
+    ? `<span class="mono">${esc(username)}</span><button class="btn ghost sm" id="logout">Log out</button>`
     : "";
-  if (authed) loadMonitors();
+  if (authed) {
+    $("#logout").onclick = logout;
+    showSkeleton();
+    load();
+    if (timer) clearInterval(timer);
+    timer = setInterval(load, 15000);
+  } else if (timer) { clearInterval(timer); timer = null; }
+}
+function showSkeleton() {
+  $("#monitors").innerHTML = Array.from({length:3}, () => '<div class="skeleton"></div>').join("");
 }
 render();
 </script>

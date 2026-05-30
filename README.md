@@ -26,7 +26,7 @@ notifykit = { git = "https://github.com/ifleonlabs/notifykit" }
 - **Alerts** — give a monitor a `webhook_url` and incident open/resolve POSTs a notification there (via notifykit; best-effort, never blocks a check)
 - **Stats** — uptime ratio and average latency over a recent window
 - **Multi-user** — JWT auth; each user owns their own monitors
-- **Dashboard** — a clean web UI to add monitors and watch their status
+- **Dashboard** — a polished OLED-dark operations UI: live status badges, uptime/latency tiles, auto-refresh, skeleton loaders, toasts, inline-validated forms, and keyboard/screen-reader accessibility. The visual language is documented in [DESIGN.md](DESIGN.md) and shared across the ifleonlabs apps.
 
 ## Install & run
 
