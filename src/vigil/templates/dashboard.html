@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vigil — uptime monitoring</title>
+  <style>
+    :root {
+      --bg:#0f1420; --panel:#171e2e; --line:#26304a; --fg:#e8edf6; --muted:#93a0b8;
+      --up:#34d399; --down:#f87171; --changed:#fbbf24; --accent:#5b8cff;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+           background:var(--bg); color:var(--fg); line-height:1.5; }
+    header { padding:1.1rem 1.5rem; border-bottom:1px solid var(--line);
+             display:flex; align-items:center; justify-content:space-between; }
+    .brand { font-weight:800; font-size:1.3rem; letter-spacing:-.02em; }
+    .brand span { color:var(--accent); }
+    main { max-width:60rem; margin:0 auto; padding:1.5rem; }
+    button { font:inherit; cursor:pointer; border:0; border-radius:8px;
+             background:var(--accent); color:#fff; padding:.5rem .9rem; }
+    button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
+    button.danger { background:transparent; border:1px solid var(--down); color:var(--down); }
+    input { font:inherit; background:var(--bg); border:1px solid var(--line); color:var(--fg);
+            border-radius:8px; padding:.5rem .6rem; }
+    label { display:flex; flex-direction:column; gap:.25rem; font-size:.85rem; color:var(--muted); }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.1rem; }
+    .row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:end; }
+    .grid { display:grid; gap:.8rem; }
+    .mon { display:flex; align-items:center; gap:1rem; padding:.9rem 1rem;
+           border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+    .mon .meta { flex:1; min-width:0; }
+    .mon .name { font-weight:700; }
+    .mon .url { color:var(--muted); font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .badge { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+             padding:.18rem .5rem; border-radius:999px; }
+    .badge.up{background:rgba(52,211,153,.15);color:var(--up)}
+    .badge.down{background:rgba(248,113,113,.15);color:var(--down)}
+    .badge.changed{background:rgba(251,191,36,.15);color:var(--changed)}
+    .badge.none{background:rgba(147,160,184,.15);color:var(--muted)}
+    .stat { text-align:right; font-size:.8rem; color:var(--muted); min-width:6rem; }
+    .stat b { display:block; color:var(--fg); font-size:1rem; }
+    .muted { color:var(--muted); }
+    h2 { font-size:1.05rem; margin:1.4rem 0 .7rem; }
+    .checks { margin-top:.6rem; font-size:.82rem; }
+    .check { display:flex; gap:.6rem; padding:.25rem 0; border-top:1px solid var(--line); }
+    .dot { width:.6rem; height:.6rem; border-radius:50%; margin-top:.45rem; }
+    .dot.up{background:var(--up)} .dot.down{background:var(--down)} .dot.changed{background:var(--changed)}
+    .hidden { display:none; }
+    .err { color:var(--down); font-size:.85rem; min-height:1.2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">vi<span>gil</span></div>
+    <div id="userbox"></div>
+  </header>
+  <main>
+    <!-- Auth -->
+    <section id="auth" class="panel hidden">
+      <h2 style="margin-top:0">Sign in</h2>
+      <div class="row">
+        <label>Username <input id="u" autocomplete="username"></label>
+        <label>Password <input id="p" type="password" autocomplete="current-password"></label>
+        <button onclick="auth('login')">Log in</button>
+        <button class="ghost" onclick="auth('register')">Register</button>
+      </div>
+      <div class="err" id="autherr"></div>
+    </section>
+
+    <!-- App -->
+    <section id="appview" class="hidden">
+      <div class="panel">
+        <h2 style="margin-top:0">Add a monitor</h2>
+        <div class="row">
+          <label>Name <input id="m-name" placeholder="My site"></label>
+          <label>URL <input id="m-url" placeholder="https://example.com" size="28"></label>
+          <label>Interval (s) <input id="m-int" type="number" value="300" style="width:7rem"></label>
+          <label>Expect <input id="m-status" type="number" value="200" style="width:6rem"></label>
+          <label>Keyword <input id="m-kw" placeholder="optional"></label>
+          <label class="row" style="align-items:center;gap:.35rem;">
+            <input id="m-watch" type="checkbox" style="width:auto"> watch content
+          </label>
+          <button onclick="addMonitor()">Add</button>
+        </div>
+        <div class="err" id="adderr"></div>
+      </div>
+
+      <h2>Monitors</h2>
+      <div id="monitors" class="grid"></div>
+    </section>
+  </main>
+
+<script>
+const $ = s => document.querySelector(s);
+let token = localStorage.getItem("vigil_token");
+let username = localStorage.getItem("vigil_user");
+
+async function api(path, opts={}) {
+  opts.headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
+  if (token) opts.headers["Authorization"] = "Bearer " + token;
+  const r = await fetch(path, opts);
+  if (r.status === 401) { logout(); throw new Error("Please sign in"); }
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ("HTTP "+r.status));
+  return r.status === 204 ? null : r.json();
+}
+
+async function auth(kind) {
+  $("#autherr").textContent = "";
+  try {
+    const data = await api("/api/"+kind, {method:"POST",
+      body: JSON.stringify({username:$("#u").value, password:$("#p").value})});
+    token = data.access_token; username = data.username;
+    localStorage.setItem("vigil_token", token);
+    localStorage.setItem("vigil_user", username);
+    render();
+  } catch(e) { $("#autherr").textContent = e.message; }
+}
+
+function logout() {
+  token = username = null;
+  localStorage.removeItem("vigil_token"); localStorage.removeItem("vigil_user");
+  render();
+}
+
+async function addMonitor() {
+  $("#adderr").textContent = "";
+  try {
+    await api("/api/monitors", {method:"POST", body: JSON.stringify({
+      name:$("#m-name").value, url:$("#m-url").value,
+      interval_seconds:+$("#m-int").value, expected_status:+$("#m-status").value,
+      keyword:$("#m-kw").value || null, watch_content:$("#m-watch").checked,
+    })});
+    $("#m-name").value = $("#m-url").value = $("#m-kw").value = "";
+    loadMonitors();
+  } catch(e) { $("#adderr").textContent = e.message; }
+}
+
+const pct = r => r==null ? "—" : (r*100).toFixed(1)+"%";
+const ms  = v => v==null ? "—" : Math.round(v)+" ms";
+
+async function loadMonitors() {
+  const list = await api("/api/monitors");
+  const box = $("#monitors");
+  if (!list.length) { box.innerHTML = '<p class="muted">No monitors yet. Add one above.</p>'; return; }
+  box.innerHTML = "";
+  for (const m of list) {
+    const st = m.last_status || "none";
+    const el = document.createElement("div");
+    el.className = "mon";
+    el.innerHTML = `
+      <span class="badge ${st}">${st}</span>
+      <div class="meta">
+        <div class="name">${esc(m.name)} ${m.paused?'<span class="muted">(paused)</span>':''}</div>
+        <div class="url">${esc(m.url)}</div>
+      </div>
+      <div class="stat"><b>${pct(m.uptime_ratio)}</b>uptime</div>
+      <div class="stat"><b>${ms(m.avg_latency_ms)}</b>avg latency</div>
+      <button class="ghost" data-act="check">Check now</button>
+      <button class="danger" data-act="del">✕</button>`;
+    el.querySelector('[data-act="check"]').onclick = () => checkNow(m.id);
+    el.querySelector('[data-act="del"]').onclick = () => delMonitor(m.id);
+    box.appendChild(el);
+  }
+}
+
+async function checkNow(id) { await api(`/api/monitors/${id}/check`, {method:"POST"}); loadMonitors(); }
+async function delMonitor(id) {
+  if (!confirm("Delete this monitor?")) return;
+  await api(`/api/monitors/${id}`, {method:"DELETE"}); loadMonitors();
+}
+
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+function render() {
+  const authed = !!token;
+  $("#auth").classList.toggle("hidden", authed);
+  $("#appview").classList.toggle("hidden", !authed);
+  $("#userbox").innerHTML = authed
+    ? `<span class="muted">${esc(username)}</span> &nbsp;<button class="ghost" onclick="logout()">Log out</button>`
+    : "";
+  if (authed) loadMonitors();
+}
+render();
+</script>
+</body>
+</html>
