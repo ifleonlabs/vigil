@@ -58,6 +58,16 @@ uv run vigil create-user alice
 
 No build step? `uv run vigil serve` falls back to a self-contained HTML dashboard when `frontend/dist` is absent.
 
+### Run it (Docker)
+
+```bash
+VIGIL_SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(48))") \
+  docker compose up --build
+# → http://localhost:8000  (web + scheduler + worker, with a healthcheck)
+```
+
+The image is a multi-stage build (builds the React frontend, then runs the API serving it) and runs with `VIGIL_ENV=production`, so it **refuses to start without a real `VIGIL_SECRET_KEY`**. See [`.env.example`](.env.example) for all settings and [`SECURITY.md`](SECURITY.md) for the security posture (headers, auth rate limiting, scanning).
+
 ## Architecture
 
 ```

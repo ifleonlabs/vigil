@@ -1,0 +1,48 @@
+# Run vigil containerized: the web API/UI plus the scheduler and worker.
+#
+#   VIGIL_SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(48))") \
+#     docker compose up --build
+#
+# (or put VIGIL_SECRET_KEY in a .env file next to this one). The image runs with
+# VIGIL_ENV=production, so it refuses to start without a real secret.
+
+x-app: &app
+  image: vigil:local
+  environment:
+    VIGIL_ENV: production
+    VIGIL_SECRET_KEY: ${VIGIL_SECRET_KEY:?set VIGIL_SECRET_KEY — see .env.example}
+    VIGIL_DATABASE_URL: sqlite:////app/data/vigil.db
+    VIGIL_QUEUE_PATH: /app/data/vigil-queue.db
+  volumes:
+    - vigil-data:/app/data
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *app
+    build: .
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  scheduler:
+    <<: *app
+    command: ["vigil", "scheduler"]
+    depends_on:
+      web:
+        condition: service_healthy
+
+  worker:
+    <<: *app
+    command: ["vigil", "worker"]
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  vigil-data:

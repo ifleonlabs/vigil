@@ -35,10 +35,13 @@ def session(engine):
 
 @pytest.fixture
 def client(engine):
+    from vigil.app import clear_rate_limits
+
     def override():
         with Session(engine) as s:
             yield s
 
+    clear_rate_limits()  # isolate the per-IP auth limiter between tests
     app.dependency_overrides[get_session] = override
     yield TestClient(app)   # no `with` -> skip startup init_db side effects
     app.dependency_overrides.clear()

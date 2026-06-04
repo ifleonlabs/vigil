@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import threading
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +17,7 @@ from sqlmodel import Session, select
 
 from . import security, stats
 from .checks import build_client, run_check
+from .config import get_settings
 from .db import get_session, init_db
 from .models import Monitor, User, utcnow
 from .schemas import (
@@ -25,6 +30,8 @@ from .schemas import (
     Token,
 )
 
+logger = logging.getLogger("vigil")
+
 # The React frontend builds to vigil/frontend/dist. When present we serve it;
 # otherwise we fall back to the self-contained legacy template (no build needed).
 _FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
@@ -32,14 +39,74 @@ _DASHBOARD_HTML = (Path(__file__).parent / "templates" / "dashboard.html").read_
     encoding="utf-8"
 )
 
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    settings = get_settings()
+    settings.check_security()  # refuse to boot in prod with the default secret
+    if settings.secret_key == "dev-secret-change-me":
+        logger.warning("Using the INSECURE default secret key — set VIGIL_SECRET_KEY for production.")
     init_db()
     yield
 
 
 app = FastAPI(title="vigil", description="Uptime & change monitoring.", lifespan=lifespan)
 _bearer = HTTPBearer(auto_error=False)
+
+
+# --- security headers ----------------------------------------------------
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Content-Security-Policy", _CSP)
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
+# --- auth rate limiting (in-memory, per IP) ------------------------------
+_attempts: dict[str, list[float]] = defaultdict(list)
+_attempts_lock = threading.Lock()
+
+
+def clear_rate_limits() -> None:
+    """Reset the limiter (used by tests)."""
+    with _attempts_lock:
+        _attempts.clear()
+
+
+def _rate_limit(request: Request) -> None:
+    settings = get_settings()
+    ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    cutoff = now - settings.auth_window_seconds
+    with _attempts_lock:
+        bucket = _attempts[ip]
+        bucket[:] = [t for t in bucket if t > cutoff]
+        if len(bucket) >= settings.auth_max_attempts:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                "Too many attempts — please wait and try again.")
+        bucket.append(now)
+
+
+# --- health --------------------------------------------------------------
+@app.get("/api/health")
+def health() -> dict:
+    return {"status": "ok"}
 
 
 # --- auth ----------------------------------------------------------------
@@ -59,7 +126,9 @@ def current_user(
 
 
 @app.post("/api/register", response_model=Token)
-def register(body: Credentials, session: Session = Depends(get_session)) -> Token:
+def register(body: Credentials, request: Request,
+             session: Session = Depends(get_session)) -> Token:
+    _rate_limit(request)
     if session.exec(select(User).where(User.username == body.username)).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Username already taken")
     user = User(username=body.username, password_hash=security.hash_password(body.password))
@@ -69,7 +138,9 @@ def register(body: Credentials, session: Session = Depends(get_session)) -> Toke
 
 
 @app.post("/api/login", response_model=Token)
-def login(body: Credentials, session: Session = Depends(get_session)) -> Token:
+def login(body: Credentials, request: Request,
+          session: Session = Depends(get_session)) -> Token:
+    _rate_limit(request)
     user = session.exec(select(User).where(User.username == body.username)).first()
     if user is None or not security.verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Bad username or password")
