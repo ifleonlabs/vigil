@@ -28,25 +28,35 @@ notifykit = { git = "https://github.com/ifleonlabs/notifykit" }
 - **Multi-user** — JWT auth; each user owns their own monitors
 - **Dashboard** — a polished OLED-dark operations UI: live status badges, uptime/latency tiles, auto-refresh, skeleton loaders, toasts, inline-validated forms, and keyboard/screen-reader accessibility. The visual language is documented in [DESIGN.md](DESIGN.md) and shared across the ifleonlabs apps.
 
-## Install & run
+## Frontend + backend
+
+vigil is split into a **Python API** (FastAPI) and a **React frontend** (Vite + TypeScript) in [`frontend/`](frontend/). In dev they run side by side and Vite proxies `/api` to the backend (no CORS). In prod the frontend builds to `frontend/dist` and FastAPI serves it.
+
+### Run it (development) — one command
 
 ```bash
 git clone https://github.com/ifleonlabs/vigil.git
 cd vigil
-uv sync                       # also fetches apikit + taskq from GitHub
-
-uv run vigil run              # web + scheduler + worker in one process
-# open http://127.0.0.1:8000, register, and add a monitor
+uv sync                       # fetches apikit + taskq + notifykit from GitHub
+python dev.py                 # starts the API AND the React dev server together
+# open http://127.0.0.1:5173  (first run installs the frontend deps automatically)
 ```
 
-For production you'd typically run the pieces separately:
+`dev.py` runs `uv run vigil serve` (API on :8000) and `npm run dev` (frontend on :5173) in one process; Ctrl+C stops both.
+
+> Want checks to run on a schedule while developing? Also start `uv run vigil scheduler` and `uv run vigil worker`. The frontend's **Check now** button works without them.
+
+### Run it (production)
 
 ```bash
-uv run vigil serve            # the API + dashboard
+cd frontend && npm install && npm run build && cd ..   # build the SPA -> frontend/dist
+uv run vigil serve            # FastAPI now serves the built app at http://127.0.0.1:8000
 uv run vigil scheduler        # enqueues due checks
 uv run vigil worker           # taskq worker that executes checks
 uv run vigil create-user alice
 ```
+
+No build step? `uv run vigil serve` falls back to a self-contained HTML dashboard when `frontend/dist` is absent.
 
 ## Architecture
 
@@ -87,8 +97,10 @@ Every HTTP check in the tests is served by `httpx.MockTransport` through apikit,
 
 ```
 vigil/
-├── pyproject.toml          # depends on apikit + taskq from GitHub
+├── pyproject.toml          # depends on apikit + taskq + notifykit from GitHub
+├── dev.py                  # run the API + React frontend together
 ├── main.py
+├── DESIGN.md               # the shared ifleon design system
 ├── src/vigil/
 │   ├── config.py           # settings (.env)
 │   ├── db.py               # SQLite engine/session
@@ -99,9 +111,11 @@ vigil/
 │   ├── scheduler.py        # enqueue due checks
 │   ├── tasks.py            # taskq check job
 │   ├── notify.py           # incident alerts via notifykit
-│   ├── app.py              # FastAPI app
+│   ├── app.py              # FastAPI app (API + serves the built frontend)
 │   ├── cli.py              # serve / worker / scheduler / create-user
-│   └── templates/dashboard.html
+│   └── templates/dashboard.html   # no-build fallback UI
+├── frontend/               # Vite + React + TypeScript dashboard
+│   └── src/                # api.ts, App.tsx, components/, index.css (design system)
 └── tests/
 ```
 

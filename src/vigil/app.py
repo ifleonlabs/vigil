@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
 from . import security, stats
@@ -24,8 +25,9 @@ from .schemas import (
     Token,
 )
 
-# The dashboard is a self-contained static page (all rendering is client-side),
-# so we serve it as raw HTML rather than running it through a template engine.
+# The React frontend builds to vigil/frontend/dist. When present we serve it;
+# otherwise we fall back to the self-contained legacy template (no build needed).
+_FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 _DASHBOARD_HTML = (Path(__file__).parent / "templates" / "dashboard.html").read_text(
     encoding="utf-8"
 )
@@ -156,6 +158,11 @@ def check_now(monitor_id: int, user: User = Depends(current_user),
 
 
 # --- UI ------------------------------------------------------------------
-@app.get("/", response_class=HTMLResponse)
-def dashboard() -> HTMLResponse:
-    return HTMLResponse(_DASHBOARD_HTML)
+# Serve the built React app when it exists; otherwise the legacy template.
+# (Mounted last so it never shadows the /api routes declared above.)
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
+else:
+    @app.get("/", response_class=HTMLResponse)
+    def dashboard() -> HTMLResponse:
+        return HTMLResponse(_DASHBOARD_HTML)
